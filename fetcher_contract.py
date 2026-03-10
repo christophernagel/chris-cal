@@ -58,10 +58,12 @@ class EventData:
     # identity
     title: str
     source_url: str                          # direct link to event; used as dedup key with source_id
-    series_id: str | None = None             # for recurring events; None if one-off or unknown
 
     # time
     start_at: datetime                       # must be timezone-aware (UTC or local with tzinfo)
+
+    # --- fields with defaults below ---
+    series_id: str | None = None             # for recurring events; None if one-off or unknown
     end_at: datetime | None = None
 
     # place

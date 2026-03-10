@@ -14,12 +14,18 @@ about the source, not a heuristic — CAP programs contemporary music, jazz,
 experimental performance, dance, and theater.
 
 Structure (as of March 2026):
-  - Listing page: <a href="/event/slug"> cards with <h3> title, <p> date/venue
-  - Detail page: <h1> title, date/time/venue text, description paragraphs,
+  - Listing page: <a class="views-row plain" href="/event/slug"> cards
+    with Drupal Views field divs:
+      .views-field-field-event-date    → <time datetime="ISO"> + text
+      .views-field-field-event-artist  → artist name
+      .views-field-field-event-title   → event title
+      .views-field-field-event-venue   → venue name
+      .views-field-field-event-type    → e.g. "Live performance"
+      .views-field-field-event-genre   → e.g. "Contemporary Classical, Theater"
+  - Detail page: <h1> title, <a href="/venue/..."> venue, description,
     ticket links to ucla.evenue.net
   - No pagination (single page, ~10-15 events)
-  - No iCal feed, no JSON-LD, no structured data
-  - Drupal CMS with AJAX-capable views
+  - Drupal 10 CMS
 """
 
 from __future__ import annotations
@@ -129,33 +135,59 @@ async def fetch(client: httpx.AsyncClient | None = None) -> FetchResult:
 def _extract_event_links(soup: BeautifulSoup) -> list[tuple[str, dict[str, str]]]:
     """Extract event hrefs and listing-level metadata from the calendar page.
 
-    Returns list of (href, {title, date_text, venue_text}) tuples.
+    Returns list of (href, {title, artist, date_text, venue_text, genre}) tuples.
     Listing data is used as fallback if the detail page is incomplete.
     """
     results = []
 
-    # Find all links to /event/* pages
-    for link in soup.find_all("a", href=True):
+    # Find all event cards: <a class="views-row" href="/event/...">
+    for link in soup.find_all("a", class_="views-row", href=True):
         href = link["href"]
         if not href.startswith("/event/"):
             continue
 
         listing_data: dict[str, str] = {}
 
-        # Title from <h3> inside the link
-        h3 = link.find("h3")
-        if h3:
-            listing_data["title"] = h3.get_text(strip=True)
+        # Helper: get text from a Drupal Views field div
+        def _field_text(field_name: str) -> str | None:
+            div = link.find("div", class_=f"views-field-field-event-{field_name}")
+            if div:
+                content = div.find("div", class_="field-content")
+                if content:
+                    return content.get_text(strip=True)
+            return None
 
-        # Date and venue from <p> tags inside the link
-        paragraphs = link.find_all("p")
-        for p in paragraphs:
-            text = p.get_text(strip=True)
-            if _looks_like_date(text):
-                listing_data["date_text"] = text
-            elif text and "date_text" in listing_data:
-                # Second text element after date is typically venue
-                listing_data["venue_text"] = text
+        # Title: combine artist + event title (e.g. "Charles Gaines — Manifestos 6")
+        artist = _field_text("artist")
+        event_title = _field_text("title")
+        if artist and event_title:
+            listing_data["title"] = f"{artist} — {event_title}"
+            listing_data["artist"] = artist
+        elif artist:
+            listing_data["title"] = artist
+        elif event_title:
+            listing_data["title"] = event_title
+
+        # Date: build text from <time> tag + surrounding text
+        date_div = link.find("div", class_="views-field-field-event-date")
+        if date_div:
+            content = date_div.find("div", class_="field-content")
+            if content:
+                listing_data["date_text"] = content.get_text(strip=True)
+                # Also grab ISO datetime from <time> tag as a bonus
+                time_tag = content.find("time")
+                if time_tag and time_tag.get("datetime"):
+                    listing_data["datetime_iso"] = time_tag["datetime"]
+
+        # Venue
+        venue = _field_text("venue")
+        if venue:
+            listing_data["venue_text"] = venue
+
+        # Genre (for tag extraction)
+        genre = _field_text("genre")
+        if genre:
+            listing_data["genre"] = genre
 
         if listing_data.get("title"):
             results.append((href, listing_data))
