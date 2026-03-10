@@ -58,6 +58,37 @@ class Scheduler:
             max_instances=1,
         )
 
+        # Daily reports at 6:00am and 6:05am LA time
+        from apscheduler.triggers.cron import CronTrigger
+        self.scheduler.add_job(
+            self._generate_surf_report,
+            trigger=CronTrigger(hour=6, minute=0, timezone="America/Los_Angeles"),
+            id="surf_report",
+            max_instances=1,
+        )
+        self.scheduler.add_job(
+            self._generate_events_report,
+            trigger=CronTrigger(hour=6, minute=5, timezone="America/Los_Angeles"),
+            id="events_report",
+            max_instances=1,
+        )
+
+        # Wavecast forecast fetch at 5:30am LA time (before report)
+        self.scheduler.add_job(
+            self._fetch_wavecast,
+            trigger=CronTrigger(hour=5, minute=30, timezone="America/Los_Angeles"),
+            id="wavecast_fetch",
+            max_instances=1,
+        )
+
+        # Tide data refresh quarterly (1st of Jan/Apr/Jul/Oct at midnight)
+        self.scheduler.add_job(
+            self._refresh_tides,
+            trigger=CronTrigger(month="1,4,7,10", day=1, hour=0, timezone="America/Los_Angeles"),
+            id="tide_refresh",
+            max_instances=1,
+        )
+
         self.scheduler.start()
         logger.info(f"Scheduler started with {len(sources)} source(s).")
 
@@ -265,6 +296,70 @@ class Scheduler:
             WHERE enabled = TRUE
             """
         )
+
+    # ================================================================
+    # Daily report + forecast + tide jobs
+    # ================================================================
+
+    async def _generate_surf_report(self) -> None:
+        """Generate the daily surf forecast report via Claude API."""
+        try:
+            from report_generator import generate_surf_report
+            report = await generate_surf_report(self.pool)
+            if report:
+                logger.info(f"Surf report generated ({len(report)} chars)")
+            else:
+                logger.warning("Surf report generation returned None")
+        except Exception as e:
+            logger.error(f"Surf report generation failed: {e}", exc_info=True)
+
+    async def _generate_events_report(self) -> None:
+        """Generate the daily events outlook report via Claude API."""
+        try:
+            from report_generator import generate_events_report
+            report = await generate_events_report(self.pool)
+            if report:
+                logger.info(f"Events report generated ({len(report)} chars)")
+            else:
+                logger.warning("Events report generation returned None")
+        except Exception as e:
+            logger.error(f"Events report generation failed: {e}", exc_info=True)
+
+    async def _fetch_wavecast(self) -> None:
+        """Fetch and store the Wavecast surf forecast."""
+        try:
+            from fetchers.wavecast import fetch as fetch_wavecast
+            result = await fetch_wavecast()
+            if result.outcome == "success" and result.forecast_text:
+                await self.pool.execute(
+                    """
+                    INSERT INTO forecasts (forecast_date, source, forecast_text)
+                    VALUES ($1, 'wavecast', $2)
+                    ON CONFLICT (forecast_date, source) DO UPDATE SET
+                        forecast_text = EXCLUDED.forecast_text, fetched_at = now()
+                    """,
+                    result.forecast_date,
+                    result.forecast_text,
+                )
+                logger.info(f"Wavecast forecast stored ({len(result.forecast_text)} chars)")
+            else:
+                logger.warning(f"Wavecast fetch failed: {result.error_message}")
+        except Exception as e:
+            logger.error(f"Wavecast fetch failed: {e}", exc_info=True)
+
+    async def _refresh_tides(self) -> None:
+        """Refresh tide data for the current quarter."""
+        try:
+            from fetchers.noaa_tides import fetch_quarter
+            from tide_utils import ingest_tides
+            result = await fetch_quarter()
+            if result.outcome == "success":
+                count = await ingest_tides(self.pool, result.predictions)
+                logger.info(f"Tide refresh: {count} predictions ingested")
+            else:
+                logger.warning(f"Tide refresh failed: {result.error_message}")
+        except Exception as e:
+            logger.error(f"Tide refresh failed: {e}", exc_info=True)
 
 
 def _now_ms() -> int:

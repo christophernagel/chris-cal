@@ -19,8 +19,12 @@ from enum import Enum
 from typing import Annotated
 
 import asyncpg
+from pathlib import Path
+
 from fastapi import Depends, FastAPI, HTTPException, Query, Response
+from fastapi.responses import FileResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 # ============================================================
@@ -28,8 +32,8 @@ from pydantic import BaseModel
 # ============================================================
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://localhost/chriscal")
-HEALTH_USER = os.environ.get("CHRISCAL_HEALTH_USER", "admin")
-HEALTH_PASS = os.environ.get("CHRISCAL_HEALTH_PASS", "changeme")
+HEALTH_USER = os.environ["CHRISCAL_HEALTH_USER"]
+HEALTH_PASS = os.environ["CHRISCAL_HEALTH_PASS"]
 
 # ============================================================
 # App + lifecycle
@@ -40,6 +44,17 @@ app = FastAPI(
     description="Personal event calendar — UCLA/Westside/canyon ecosystem",
     version="0.1.0",
 )
+
+
+STATIC_DIR = Path(__file__).resolve().parent / "static"
+
+
+@app.get("/", include_in_schema=False)
+async def root():
+    return FileResponse(STATIC_DIR / "index.html")
+
+
+app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 
 @app.on_event("startup")
@@ -231,7 +246,7 @@ async def get_events(
             source_name, source_display_name
         FROM events_view
         WHERE {where_clause}
-        ORDER BY auto_priority DESC, start_at ASC
+        ORDER BY start_at ASC, auto_priority DESC
         LIMIT ${limit_param} OFFSET ${offset_param}
     """
 
@@ -508,3 +523,274 @@ async def get_health(
             )
 
     return HealthResponse(sources=source_responses, alerts=alerts)
+
+
+# ============================================================
+# GET /report endpoints (surf + events)
+# ============================================================
+
+class ReportResponse(BaseModel):
+    report_date: str
+    report_text: str
+    generated_at: datetime
+    is_stale: bool = False
+
+
+class CombinedReportResponse(BaseModel):
+    surf: ReportResponse | None = None
+    events: ReportResponse | None = None
+
+
+@app.get("/report/today", response_model=CombinedReportResponse)
+async def get_report_today(pool: asyncpg.Pool = Depends(get_pool)):
+    """Both reports for today."""
+    from report_generator import _get_report_by_type
+    today = datetime.now(timezone.utc).date()
+    surf = await _get_report_by_type(pool, today, "surf")
+    events = await _get_report_by_type(pool, today, "events")
+    return CombinedReportResponse(
+        surf=ReportResponse(**surf) if surf else None,
+        events=ReportResponse(**events) if events else None,
+    )
+
+
+@app.get("/report/surf/today", response_model=ReportResponse)
+async def get_surf_report_today(pool: asyncpg.Pool = Depends(get_pool)):
+    """Today's surf report."""
+    return await _get_typed_report(pool, datetime.now(timezone.utc).date(), "surf")
+
+
+@app.get("/report/surf/{date}", response_model=ReportResponse)
+async def get_surf_report_by_date(date: str, pool: asyncpg.Pool = Depends(get_pool)):
+    """Surf report for a specific date."""
+    return await _get_typed_report(pool, _parse_date(date), "surf")
+
+
+@app.get("/report/events/today", response_model=ReportResponse)
+async def get_events_report_today(pool: asyncpg.Pool = Depends(get_pool)):
+    """Today's events report."""
+    return await _get_typed_report(pool, datetime.now(timezone.utc).date(), "events")
+
+
+@app.get("/report/events/{date}", response_model=ReportResponse)
+async def get_events_report_by_date(date: str, pool: asyncpg.Pool = Depends(get_pool)):
+    """Events report for a specific date."""
+    return await _get_typed_report(pool, _parse_date(date), "events")
+
+
+def _parse_date(date_str: str):
+    from datetime import date as date_type
+    try:
+        return date_type.fromisoformat(date_str)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD.")
+
+
+async def _get_typed_report(pool: asyncpg.Pool, target_date, report_type: str) -> ReportResponse:
+    """Get a typed report, falling back to most recent."""
+    from report_generator import _get_report_by_type
+    result = await _get_report_by_type(pool, target_date, report_type)
+    if result:
+        return ReportResponse(**result)
+    raise HTTPException(status_code=404, detail=f"No {report_type} report available yet.")
+
+
+# ============================================================
+# GET /api/tides
+# ============================================================
+
+class TidePoint(BaseModel):
+    timestamp: datetime
+    height_ft: float
+    tide_type: str
+
+
+class TideCurvePoint(BaseModel):
+    hour: float
+    height: float
+
+
+class TidesResponse(BaseModel):
+    date: str
+    hilo: list[TidePoint]
+    curve: list[TideCurvePoint]
+    sunset: str | None
+
+
+@app.get("/api/tides/{date}", response_model=TidesResponse)
+async def get_tides(date: str, pool: asyncpg.Pool = Depends(get_pool)):
+    """Tide hi/lo points and interpolated curve for a date."""
+    from datetime import date as date_type
+    from zoneinfo import ZoneInfo
+    try:
+        target_date = date_type.fromisoformat(date)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD.")
+
+    la_tz = ZoneInfo("America/Los_Angeles")
+
+    # Get hi/lo points for this date + boundary points
+    rows = await pool.fetch(
+        """
+        SELECT timestamp, height_ft, tide_type
+        FROM tides
+        WHERE station_id = '9410660'
+          AND timestamp >= ($1::timestamp - INTERVAL '1 day')
+          AND timestamp < ($1::timestamp + INTERVAL '2 day')
+        ORDER BY timestamp
+        """,
+        target_date,
+    )
+
+    predictions = [
+        {"timestamp": r["timestamp"], "height_ft": r["height_ft"], "tide_type": r["tide_type"]}
+        for r in rows
+    ]
+
+    # Filter to just this date for hilo response
+    hilo = [
+        TidePoint(timestamp=p["timestamp"], height_ft=p["height_ft"], tide_type=p["tide_type"])
+        for p in predictions
+        if p["timestamp"].astimezone(la_tz).date() == target_date
+    ]
+
+    # Generate curve points
+    from tide_utils import generate_tide_curve_points
+    curve_data = generate_tide_curve_points(predictions, target_date, num_points=96)
+    curve = [TideCurvePoint(hour=p["hour"], height=p["height"]) for p in curve_data]
+
+    # Get sunset
+    sunset_str = None
+    try:
+        from astral import LocationInfo
+        from astral.sun import sun
+        loc = LocationInfo("Santa Monica", "US", "America/Los_Angeles", 34.0195, -118.4912)
+        s = sun(loc.observer, date=target_date, tzinfo=la_tz)
+        sunset_str = s["sunset"].strftime("%H:%M")
+    except Exception:
+        pass
+
+    return TidesResponse(date=str(target_date), hilo=hilo, curve=curve, sunset=sunset_str)
+
+
+# ============================================================
+# GET /api/outlook
+# ============================================================
+
+class OutlookDay(BaseModel):
+    date: str
+    day_of_week: str
+    event_count: int
+    events_by_category: dict[str, int]
+    tide_hilo: list[TidePoint]
+    tide_curve: list[TideCurvePoint]
+    priority_events: list[dict]
+
+
+class OutlookResponse(BaseModel):
+    surf_report: ReportResponse | None = None
+    events_report: ReportResponse | None = None
+    forecast_text: str | None = None
+    days: list[OutlookDay]
+
+
+@app.get("/api/outlook", response_model=OutlookResponse)
+async def get_outlook(pool: asyncpg.Pool = Depends(get_pool)):
+    """14-day outlook: events, tides, report, forecast."""
+    from datetime import timedelta, date as date_type
+    from zoneinfo import ZoneInfo
+
+    la_tz = ZoneInfo("America/Los_Angeles")
+    today = datetime.now(la_tz).date()
+
+    # Get reports (surf + events)
+    from report_generator import _get_report_by_type
+    surf_data = await _get_report_by_type(pool, today, "surf")
+    events_data = await _get_report_by_type(pool, today, "events")
+    surf_report = ReportResponse(**surf_data) if surf_data else None
+    events_report = ReportResponse(**events_data) if events_data else None
+
+    # Get forecast
+    forecast_row = await pool.fetchrow(
+        "SELECT forecast_text FROM forecasts WHERE source = 'wavecast' ORDER BY fetched_at DESC LIMIT 1"
+    )
+    forecast_text = forecast_row["forecast_text"][:2000] if forecast_row else None
+
+    # Align to Sun–Sat weeks: start on most recent Sunday, show 2 full weeks
+    days_since_sunday = today.weekday() + 1 if today.weekday() != 6 else 0  # Mon=0..Sun=6 -> offset
+    start_date = today - timedelta(days=days_since_sunday)
+    end_date = start_date + timedelta(days=14)
+    event_rows = await pool.fetch(
+        """
+        SELECT id, title, start_at, category::text, auto_priority, venue_name, is_free, source_url
+        FROM events_view
+        WHERE start_at >= $1 AND start_at < $2
+        ORDER BY start_at
+        """,
+        datetime(start_date.year, start_date.month, start_date.day, tzinfo=la_tz),
+        datetime(end_date.year, end_date.month, end_date.day, tzinfo=la_tz),
+    )
+
+    # Get tides for 14 days
+    tide_rows = await pool.fetch(
+        """
+        SELECT timestamp, height_ft, tide_type
+        FROM tides WHERE station_id = '9410660'
+          AND timestamp >= ($1::timestamp - INTERVAL '1 day')
+          AND timestamp < ($2::timestamp + INTERVAL '1 day')
+        ORDER BY timestamp
+        """,
+        start_date, end_date,
+    )
+    all_predictions = [
+        {"timestamp": r["timestamp"], "height_ft": r["height_ft"], "tide_type": r["tide_type"]}
+        for r in tide_rows
+    ]
+
+    from tide_utils import generate_tide_curve_points
+
+    days = []
+    for offset in range(14):
+        day = start_date + timedelta(days=offset)
+        day_name = day.strftime("%a")
+
+        # Events for this day
+        day_events = [
+            r for r in event_rows
+            if r["start_at"].astimezone(la_tz).date() == day
+        ]
+        cats = {}
+        for e in day_events:
+            c = e["category"]
+            cats[c] = cats.get(c, 0) + 1
+
+        priority_events = [
+            {"title": e["title"], "time": e["start_at"].astimezone(la_tz).strftime("%I:%M %p").lstrip("0"),
+             "venue": e["venue_name"], "category": e["category"], "priority": e["auto_priority"]}
+            for e in day_events if e["auto_priority"] >= 2
+        ]
+
+        # Tides for this day
+        day_tides = [
+            p for p in all_predictions
+            if p["timestamp"].astimezone(la_tz).date() == day
+        ]
+        hilo = [
+            TidePoint(timestamp=p["timestamp"], height_ft=p["height_ft"], tide_type=p["tide_type"])
+            for p in day_tides
+        ]
+
+        curve_data = generate_tide_curve_points(all_predictions, day, num_points=48)
+        curve = [TideCurvePoint(hour=p["hour"], height=p["height"]) for p in curve_data]
+
+        days.append(OutlookDay(
+            date=str(day),
+            day_of_week=day_name,
+            event_count=len(day_events),
+            events_by_category=cats,
+            tide_hilo=hilo,
+            tide_curve=curve,
+            priority_events=priority_events,
+        ))
+
+    return OutlookResponse(surf_report=surf_report, events_report=events_report, forecast_text=forecast_text, days=days)

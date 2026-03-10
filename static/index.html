@@ -1,0 +1,1403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>chriscal</title>
+<style>
+/* ============================================================
+   Reset + Base
+   ============================================================ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #ffffff;
+  --text: #000000;
+  --text-secondary: #4a4a4a;
+  --text-muted: #888888;
+  --border: #e0e0e0;
+  --accent-blue: #c8e4f8;
+  --accent-blue-dark: #a8d0f0;
+  --grad-blue: linear-gradient(135deg, #ddeeff 0%, #c8e4f8 100%);
+  --grad-grey: linear-gradient(135deg, #f5f5f5 0%, #e8e8e8 100%);
+  --cat-music: #c8e4f8;
+  --cat-film: #d4d4f8;
+  --cat-art: #f8e4c8;
+  --cat-talks: #d4f8d4;
+  --cat-festival: #f8d4d4;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+  min-height: 100vh;
+}
+
+a { color: var(--text); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* ============================================================
+   Layout
+   ============================================================ */
+.app-header-wrap {
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  background: var(--bg);
+  z-index: 100;
+}
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 24px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+.app-header h1 {
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--text);
+}
+.tab-bar {
+  display: flex;
+  gap: 24px;
+}
+.tab-btn {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-muted);
+  font-size: 14px;
+  font-weight: 500;
+  padding: 8px 0;
+  cursor: pointer;
+}
+.tab-btn:hover { color: var(--text-secondary); }
+.tab-btn.active { color: var(--text); border-bottom: 2px solid #000; }
+
+.tab-content { display: none; padding: 24px; max-width: 1200px; margin: 0 auto; }
+.tab-content.active { display: block; }
+
+/* ============================================================
+   Report Block
+   ============================================================ */
+.report-block {
+  margin-bottom: 16px;
+  cursor: pointer;
+}
+.report-block .report-header {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  padding: 6px 8px;
+  background: #fafafa;
+  border: 1px solid var(--border);
+  border-bottom: none;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.report-block .report-header .expand-arrow {
+  font-size: 16px;
+  font-weight: 300;
+  color: #000;
+  transition: transform 0.2s;
+}
+.report-block.expanded .report-header .expand-arrow {
+  transform: rotate(90deg);
+}
+.report-block .stale-note {
+  font-weight: 400;
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-left: 6px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.report-block .report-text-wrap {
+  position: relative;
+  overflow: hidden;
+  max-height: 5.5em;
+  transition: max-height 0.3s ease;
+  border: 1px solid var(--border);
+  border-top: none;
+  padding: 10px 8px;
+}
+.report-block .report-text-wrap::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2.5em;
+  background: linear-gradient(transparent, #ffffff);
+  pointer-events: none;
+  transition: opacity 0.3s;
+}
+.report-block.expanded .report-text-wrap {
+  max-height: 2000px;
+}
+.report-block.expanded .report-text-wrap::after {
+  opacity: 0;
+}
+.report-block .report-text {
+  font-size: 14px;
+  line-height: 1.7;
+  color: #222;
+  white-space: pre-wrap;
+  margin: 0;
+}
+
+/* ============================================================
+   Outlook Grid
+   ============================================================ */
+.outlook-section-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  padding: 6px 8px;
+  background: #fafafa;
+  border: 1px solid var(--border);
+  border-bottom: none;
+}
+.outlook-grid-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.outlook-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  border-left: 1px solid var(--border);
+  border-top: 1px solid var(--border);
+  min-width: 700px;
+}
+.outlook-day {
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  padding: 8px;
+  min-height: 120px;
+  background: #ffffff;
+  cursor: pointer;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+}
+.outlook-day:hover { background: #f8f8f8; }
+.outlook-day.today { background: linear-gradient(135deg, #ddeeff 0%, #c8e4f8 100%); }
+.outlook-day.today:hover { background: linear-gradient(135deg, #d0e8ff 0%, #b8d8f0 100%); }
+.outlook-day.weekend { background: linear-gradient(135deg, #f5f5f5 0%, #e8e8e8 100%); }
+.outlook-day.weekend:hover { background: linear-gradient(135deg, #ededed 0%, #e0e0e0 100%); }
+.outlook-day.today.weekend { background: linear-gradient(135deg, #ddeeff 0%, #c8e4f8 100%); }
+
+.outlook-day-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 4px;
+}
+.outlook-day-num {
+  font-size: 13px;
+  font-weight: 600;
+}
+.outlook-day-name {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.outlook-pills {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: hidden;
+}
+.event-pill {
+  font-size: 11px;
+  line-height: 1.3;
+  padding: 2px 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+.event-pill:hover { filter: brightness(0.92); }
+.event-pill.priority-high { font-weight: 600; }
+.pills-more {
+  font-size: 10px;
+  color: var(--text-muted);
+  padding: 1px 4px;
+}
+
+.outlook-tide-svg {
+  width: 100%;
+  height: 35px;
+  margin-top: auto;
+}
+
+/* ============================================================
+   Day Detail Panel
+   ============================================================ */
+.day-detail {
+  border: 1px solid var(--border);
+  padding: 20px;
+  margin-top: 16px;
+}
+.day-detail h3 {
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  margin-bottom: 12px;
+}
+.day-detail .sunset-note {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-left: 12px;
+  font-weight: 400;
+}
+.day-detail .tide-detail { margin-bottom: 16px; }
+.day-detail-events { display: flex; flex-direction: column; }
+.day-event-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+}
+.day-event-row:last-child { border-bottom: none; }
+.day-event-row:hover { background: #f8f8f8; }
+.day-event-row .ev-cat-strip {
+  width: 4px;
+  height: 28px;
+  flex-shrink: 0;
+}
+.day-event-row .ev-time {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  min-width: 72px;
+}
+.day-event-row .ev-title {
+  font-size: 14px;
+  font-weight: 500;
+  flex: 1;
+}
+.day-event-row .ev-venue {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* ============================================================
+   Event Modal
+   ============================================================ */
+.event-modal-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  z-index: 1000;
+}
+.event-modal-overlay.visible { display: flex; align-items: center; justify-content: center; }
+.event-modal {
+  background: #fff;
+  width: 480px;
+  max-width: 90vw;
+  max-height: 80vh;
+  overflow-y: auto;
+  padding: 32px;
+  border: 1px solid #000;
+  position: relative;
+}
+.modal-close {
+  position: absolute;
+  top: 16px;
+  right: 20px;
+  font-size: 20px;
+  cursor: pointer;
+  color: var(--text);
+  background: none;
+  border: none;
+  line-height: 1;
+}
+.modal-close:hover { color: var(--text-muted); }
+.modal-cat-pill {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 3px 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+#modal-title {
+  margin: 8px 0 4px;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+#modal-venue {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-bottom: 16px;
+}
+#modal-datetime {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 16px;
+}
+#modal-description {
+  font-size: 14px;
+  line-height: 1.6;
+  color: #222;
+  margin-bottom: 24px;
+}
+#modal-actions { display: flex; gap: 12px; }
+.modal-link-btn {
+  display: inline-block;
+  padding: 10px 20px;
+  background: #000;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+}
+.modal-link-btn:hover { background: #333; text-decoration: none; }
+
+/* ============================================================
+   Feed Tab
+   ============================================================ */
+
+/* ============================================================
+   Health Tab
+   ============================================================ */
+.health-login {
+  max-width: 360px;
+  margin: 60px auto;
+  text-align: center;
+}
+.health-login h3 {
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  margin-bottom: 16px;
+  color: var(--text-secondary);
+}
+.health-login input {
+  display: block;
+  width: 100%;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  padding: 10px 14px;
+  font-size: 14px;
+  margin-bottom: 10px;
+}
+.health-login button {
+  background: #000;
+  color: #fff;
+  border: none;
+  padding: 10px 24px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  width: 100%;
+}
+.health-login button:hover { background: #333; }
+.health-login .error {
+  color: #cc0000;
+  font-size: 13px;
+  margin-top: 8px;
+}
+
+.health-table-wrap { overflow-x: auto; }
+.health-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.health-table th {
+  text-align: left;
+  padding: 10px 12px;
+  border-bottom: 2px solid var(--border);
+  color: var(--text-muted);
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+.health-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  vertical-align: middle;
+}
+.health-table tr:hover td { background: #f8f8f8; }
+.health-bar {
+  width: 80px;
+  height: 8px;
+  background: var(--border);
+  overflow: hidden;
+  display: inline-block;
+  vertical-align: middle;
+  margin-right: 6px;
+}
+.health-bar-fill { height: 100%; }
+.health-alerts { margin-bottom: 20px; }
+.health-alert {
+  background: #fff0f0;
+  border: 1px solid #ffcccc;
+  padding: 10px 14px;
+  font-size: 13px;
+  color: #cc0000;
+  margin-bottom: 8px;
+}
+
+/* ============================================================
+   Calendar Tab — filter bar
+   ============================================================ */
+.cal-controls {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+  align-items: center;
+}
+.cal-controls select {
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 0;
+  padding: 8px 12px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 14px;
+  cursor: pointer;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23888'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  padding-right: 28px;
+}
+.cal-controls select:hover { border-color: #bbb; }
+
+/* ============================================================
+   Calendar Tab (custom month grid)
+   ============================================================ */
+.cal-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 0;
+  margin-bottom: 8px;
+}
+.cal-toolbar .cal-title {
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--text);
+}
+.cal-toolbar .cal-nav {
+  display: flex;
+  align-items: center;
+}
+.cal-toolbar .cal-nav button {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 16px;
+  padding: 4px 10px;
+  cursor: pointer;
+  font-family: inherit;
+  line-height: 1;
+  margin-left: -1px;
+}
+.cal-toolbar .cal-nav button:first-child { margin-left: 0; }
+.cal-toolbar .cal-nav button:hover { background: #f0f0f0; }
+.cal-grid-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.cal-dow-row {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  min-width: 700px;
+  border-left: 1px solid var(--border);
+  border-top: 1px solid var(--border);
+}
+.cal-dow-cell {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  padding: 6px 8px;
+  background: #fafafa;
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  min-width: 700px;
+  border-left: 1px solid var(--border);
+}
+.cal-day {
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  padding: 8px;
+  min-height: 110px;
+  background: #ffffff;
+  cursor: pointer;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+}
+.cal-day:hover { background: #f8f8f8; }
+.cal-day.today { background: linear-gradient(135deg, #ddeeff 0%, #c8e4f8 100%); }
+.cal-day.today:hover { background: linear-gradient(135deg, #d0e8ff 0%, #b8d8f0 100%); }
+.cal-day.weekend { background: linear-gradient(135deg, #f5f5f5 0%, #e8e8e8 100%); }
+.cal-day.weekend:hover { background: linear-gradient(135deg, #ededed 0%, #e0e0e0 100%); }
+.cal-day.today.weekend { background: linear-gradient(135deg, #ddeeff 0%, #c8e4f8 100%); }
+.cal-day.other-month { opacity: 0.4; }
+.cal-day-num {
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+/* ============================================================
+   Loading + Utility
+   ============================================================ */
+.loading {
+  text-align: center;
+  padding: 40px;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+.spinner {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--border);
+  border-top-color: #000;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+  margin-right: 8px;
+  vertical-align: middle;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<div class="app-header-wrap">
+  <header class="app-header">
+    <h1>chriscal</h1>
+    <nav class="tab-bar">
+      <button class="tab-btn active" data-tab="outlook">Outlook</button>
+      <button class="tab-btn" data-tab="calendar">Calendar</button>
+      <button class="tab-btn" data-tab="health">Health</button>
+    </nav>
+  </header>
+</div>
+
+<!-- ============================================================
+     TAB 1: OUTLOOK
+     ============================================================ -->
+<div id="tab-outlook" class="tab-content active">
+  <div id="outlook-loading" class="loading"><span class="spinner"></span>Loading outlook...</div>
+  <div id="outlook-content" style="display:none">
+    <div id="surf-report-block" class="report-block" style="display:none"></div>
+    <div id="events-report-block" class="report-block" style="display:none"></div>
+    <div id="outlook-grid-section"></div>
+    <div id="day-detail-panel"></div>
+  </div>
+</div>
+
+<!-- ============================================================
+     TAB 2: CALENDAR
+     ============================================================ -->
+<div id="tab-calendar" class="tab-content">
+  <div class="cal-controls">
+    <select id="cal-cat-filter">
+      <option value="">All Categories</option>
+      <option value="music_performance">Music</option>
+      <option value="film_screening">Film</option>
+      <option value="visual_art">Visual Art</option>
+      <option value="talks_lectures">Talks</option>
+      <option value="festival_outdoor">Festival / Outdoor</option>
+    </select>
+  </div>
+  <div class="cal-toolbar">
+    <div class="cal-nav">
+      <button id="cal-prev">‹</button>
+      <button id="cal-next">›</button>
+    </div>
+    <div class="cal-title" id="cal-title"></div>
+  </div>
+  <div id="calendar-container"></div>
+</div>
+
+<!-- ============================================================
+     TAB 3: HEALTH
+     ============================================================ -->
+<div id="tab-health" class="tab-content">
+  <div id="health-login" class="health-login">
+    <h3>Source Health Dashboard</h3>
+    <input type="text" id="health-user" placeholder="Username" autocomplete="username">
+    <input type="password" id="health-pass" placeholder="Password" autocomplete="current-password">
+    <button id="health-login-btn">Sign In</button>
+    <div id="health-error" class="error" style="display:none"></div>
+  </div>
+  <div id="health-content" style="display:none"></div>
+</div>
+
+<!-- ============================================================
+     EVENT MODAL
+     ============================================================ -->
+<div id="event-modal" class="event-modal-overlay">
+  <div class="event-modal">
+    <button class="modal-close" id="modal-close">&times;</button>
+    <div id="modal-cat-pill" class="modal-cat-pill"></div>
+    <h2 id="modal-title"></h2>
+    <div id="modal-venue"></div>
+    <div id="modal-datetime"></div>
+    <div id="modal-description"></div>
+    <div id="modal-actions"></div>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   Globals
+   ============================================================ */
+const CAT_COLORS = {
+  music_performance: '#c8e4f8',
+  film_screening:    '#d4d4f8',
+  visual_art:        '#f8e4c8',
+  talks_lectures:    '#d4f8d4',
+  festival_outdoor:  '#f8d4d4',
+};
+const CAT_LABELS = {
+  music_performance: 'Music',
+  film_screening:    'Film',
+  visual_art:        'Art',
+  talks_lectures:    'Talks',
+  festival_outdoor:  'Festival',
+};
+
+let outlookData = null;
+let outlookEvents = {}; // date -> event array, loaded on demand
+let calendarInitialized = false;
+let calendarMonth = null; // Date object for current displayed month
+let selectedDayIdx = null;
+let tideCache = {};
+
+/* ============================================================
+   Tabs
+   ============================================================ */
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    btn.classList.add('active');
+    const tabId = 'tab-' + btn.dataset.tab;
+    document.getElementById(tabId).classList.add('active');
+
+    if (btn.dataset.tab === 'calendar' && !calendarInitialized) initCalendar();
+  });
+});
+
+/* ============================================================
+   Event Modal
+   ============================================================ */
+function openEventModal(ev) {
+  const modal = document.getElementById('event-modal');
+  const color = CAT_COLORS[ev.category] || '#e0e0e0';
+  const label = CAT_LABELS[ev.category] || ev.category;
+
+  document.getElementById('modal-cat-pill').style.background = color;
+  document.getElementById('modal-cat-pill').textContent = label;
+
+  document.getElementById('modal-title').textContent = ev.title || '';
+
+  const venueEl = document.getElementById('modal-venue');
+  venueEl.textContent = ev.venue_name || ev.venue || '';
+  venueEl.style.display = (ev.venue_name || ev.venue) ? 'block' : 'none';
+
+  const dt = ev.start_at ? new Date(ev.start_at) : null;
+  const dtEl = document.getElementById('modal-datetime');
+  if (dt) {
+    dtEl.textContent = dt.toLocaleDateString('en-US', {
+      weekday: 'long', month: 'long', day: 'numeric'
+    }) + ' \u00b7 ' + dt.toLocaleTimeString('en-US', {
+      hour: 'numeric', minute: '2-digit', hour12: true
+    });
+    dtEl.style.display = 'block';
+  } else {
+    dtEl.style.display = 'none';
+  }
+
+  const descEl = document.getElementById('modal-description');
+  if (ev.description) {
+    descEl.textContent = ev.description;
+    descEl.style.display = 'block';
+  } else {
+    descEl.style.display = 'none';
+  }
+
+  const actionsEl = document.getElementById('modal-actions');
+  const url = ev.source_url;
+  if (url) {
+    actionsEl.innerHTML = `<a class="modal-link-btn" href="${escAttr(url)}" target="_blank">LEARN MORE \u2192</a>`;
+    actionsEl.style.display = 'flex';
+  } else {
+    actionsEl.style.display = 'none';
+  }
+
+  modal.classList.add('visible');
+}
+
+function closeEventModal() {
+  document.getElementById('event-modal').classList.remove('visible');
+}
+
+document.getElementById('modal-close').addEventListener('click', closeEventModal);
+document.getElementById('event-modal').addEventListener('click', (e) => {
+  if (e.target === document.getElementById('event-modal')) closeEventModal();
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    closeEventModal();
+    document.querySelectorAll('.modal-overlay').forEach(el => el.remove());
+  }
+});
+
+/* ============================================================
+   SVG Tide Curve Rendering
+   ============================================================ */
+function tideCurvePath(curve, w, h, pad) {
+  if (!curve || curve.length < 2) return '';
+  pad = pad || 0;
+  const minH = Math.min(...curve.map(p => p.height));
+  const maxH = Math.max(...curve.map(p => p.height));
+  const range = maxH - minH || 1;
+  const pts = curve.map(p => ({
+    x: pad + (p.hour / 24) * (w - 2 * pad),
+    y: pad + (1 - (p.height - minH) / range) * (h - 2 * pad),
+  }));
+
+  let d = `M${pts[0].x.toFixed(1)},${pts[0].y.toFixed(1)}`;
+  for (let i = 1; i < pts.length; i++) {
+    const prev = pts[i - 1];
+    const curr = pts[i];
+    const cp1x = prev.x + (curr.x - prev.x) * 0.4;
+    const cp2x = curr.x - (curr.x - prev.x) * 0.4;
+    d += ` C${cp1x.toFixed(1)},${prev.y.toFixed(1)} ${cp2x.toFixed(1)},${curr.y.toFixed(1)} ${curr.x.toFixed(1)},${curr.y.toFixed(1)}`;
+  }
+  return d;
+}
+
+function renderMiniTide(curve, w, h) {
+  w = w || 100; h = h || 35;
+  const pathD = tideCurvePath(curve, w, h, 2);
+  if (!pathD) return '';
+  const fillD = pathD + ` L${(w - 2).toFixed(1)},${h} L2,${h} Z`;
+  return `<svg class="outlook-tide-svg" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">
+    <defs><linearGradient id="tg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#6aafe0" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="#6aafe0" stop-opacity="0.05"/>
+    </linearGradient></defs>
+    <path d="${fillD}" fill="url(#tg)"/>
+    <path d="${pathD}" fill="none" stroke="#6aafe0" stroke-width="1.5" stroke-linecap="round"/>
+  </svg>`;
+}
+
+function renderDetailTide(curve, hilo, w, h) {
+  w = w || 700; h = h || 120;
+  const pad = 24;
+  const pathD = tideCurvePath(curve, w, h, pad);
+  if (!pathD) return '<div style="color:var(--text-muted);font-size:13px">No tide data</div>';
+  const fillD = pathD + ` L${(w - pad).toFixed(1)},${h - pad} L${pad},${h - pad} Z`;
+
+  const minH = Math.min(...curve.map(p => p.height));
+  const maxH = Math.max(...curve.map(p => p.height));
+  const range = maxH - minH || 1;
+
+  let labels = '';
+  if (hilo && hilo.length) {
+    hilo.forEach(pt => {
+      const ts = new Date(pt.timestamp);
+      const hour = ts.getHours() + ts.getMinutes() / 60;
+      const x = pad + (hour / 24) * (w - 2 * pad);
+      const y = pad + (1 - (pt.height_ft - minH) / range) * (h - 2 * pad);
+      const lbl = pt.tide_type === 'H' ? 'H' : 'L';
+      const timeStr = ts.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }).replace(' ', '');
+      labels += `<text x="${x.toFixed(1)}" y="${(y - 8).toFixed(1)}" text-anchor="middle" fill="#4a8ab5" font-size="10" font-weight="700">${lbl}</text>`;
+      labels += `<text x="${x.toFixed(1)}" y="${(y - 18).toFixed(1)}" text-anchor="middle" fill="#888" font-size="9">${timeStr}</text>`;
+      labels += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="3" fill="#4a8ab5"/>`;
+    });
+  }
+
+  let axis = '';
+  for (let hr = 0; hr <= 24; hr += 6) {
+    const x = pad + (hr / 24) * (w - 2 * pad);
+    const lbl = hr === 0 ? '12a' : hr === 6 ? '6a' : hr === 12 ? '12p' : hr === 18 ? '6p' : '12a';
+    axis += `<text x="${x.toFixed(1)}" y="${(h - 4).toFixed(1)}" text-anchor="middle" fill="#888" font-size="9">${lbl}</text>`;
+    axis += `<line x1="${x.toFixed(1)}" y1="${pad}" x2="${x.toFixed(1)}" y2="${h - pad}" stroke="#e0e0e0" stroke-width="0.5"/>`;
+  }
+
+  return `<svg width="100%" height="${h}" viewBox="0 0 ${w} ${h}" preserveAspectRatio="xMidYMid meet">
+    <defs><linearGradient id="tgd" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#6aafe0" stop-opacity="0.25"/>
+      <stop offset="100%" stop-color="#6aafe0" stop-opacity="0.02"/>
+    </linearGradient></defs>
+    ${axis}
+    <path d="${fillD}" fill="url(#tgd)"/>
+    <path d="${pathD}" fill="none" stroke="#4a8ab5" stroke-width="2" stroke-linecap="round"/>
+    ${labels}
+  </svg>`;
+}
+
+/* ============================================================
+   OUTLOOK TAB
+   ============================================================ */
+async function loadOutlook() {
+  try {
+    const res = await fetch('/api/outlook');
+    if (!res.ok) throw new Error('API error');
+    outlookData = await res.json();
+    renderOutlook();
+  } catch (e) {
+    document.getElementById('outlook-loading').innerHTML = 'Failed to load outlook data.';
+    console.error(e);
+  }
+}
+
+function renderOutlook() {
+  const { surf_report, events_report, forecast_text, days } = outlookData;
+
+  // Surf report
+  const surfBlock = document.getElementById('surf-report-block');
+  if (surf_report) {
+    const staleNote = surf_report.is_stale ? `<span class="stale-note">(from ${surf_report.report_date})</span>` : '';
+    surfBlock.innerHTML = `<div class="report-header"><span>Surf &amp; Conditions${staleNote}</span><span class="expand-arrow">›</span></div><div class="report-text-wrap"><div class="report-text">${renderMarkdown(escHtml(surf_report.report_text))}</div></div>`;
+    surfBlock.style.display = 'block';
+    surfBlock.onclick = () => surfBlock.classList.toggle('expanded');
+  }
+
+  // Events report
+  const eventsBlock = document.getElementById('events-report-block');
+  if (events_report) {
+    const staleNote = events_report.is_stale ? `<span class="stale-note">(from ${events_report.report_date})</span>` : '';
+    eventsBlock.innerHTML = `<div class="report-header"><span>Events Outlook${staleNote}</span><span class="expand-arrow">›</span></div><div class="report-text-wrap"><div class="report-text">${renderMarkdown(escHtml(events_report.report_text))}</div></div>`;
+    eventsBlock.style.display = 'block';
+    eventsBlock.onclick = () => eventsBlock.classList.toggle('expanded');
+  }
+
+
+  // Build 7-day grid rows
+  const todayStr = new Date().toLocaleDateString('en-CA');
+  const section = document.getElementById('outlook-grid-section');
+
+  let html = '';
+  html += '<div class="outlook-section-label">THIS WEEK</div>';
+  html += '<div class="outlook-grid-wrap"><div class="outlook-grid">';
+  for (let i = 0; i < 7 && i < days.length; i++) {
+    html += renderDayCell(days[i], i, todayStr);
+  }
+  html += '</div></div>';
+
+  if (days.length > 7) {
+    html += '<div class="outlook-section-label" style="margin-top:0; border-top:none;">NEXT WEEK</div>';
+    html += '<div class="outlook-grid-wrap"><div class="outlook-grid">';
+    for (let i = 7; i < 14 && i < days.length; i++) {
+      html += renderDayCell(days[i], i, todayStr);
+    }
+    html += '</div></div>';
+  }
+
+  section.innerHTML = html;
+
+  // Click handlers for day cells
+  section.querySelectorAll('.outlook-day').forEach(cell => {
+    cell.addEventListener('click', (e) => {
+      // Don't trigger if clicking a pill
+      if (e.target.closest('.event-pill')) return;
+      const idx = parseInt(cell.dataset.idx, 10);
+      selectDay(idx);
+    });
+  });
+
+  // Click handlers for event pills
+  section.querySelectorAll('.event-pill').forEach(pill => {
+    pill.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const dayIdx = parseInt(pill.dataset.dayIdx, 10);
+      const evIdx = parseInt(pill.dataset.evIdx, 10);
+      const day = outlookData.days[dayIdx];
+      if (day && day._events && day._events[evIdx]) {
+        openEventModal(day._events[evIdx]);
+      } else {
+        // Fallback: open from priority_events
+        const pev = day.priority_events[evIdx];
+        if (pev) openEventModal(pev);
+      }
+    });
+  });
+
+  document.getElementById('outlook-loading').style.display = 'none';
+  document.getElementById('outlook-content').style.display = 'block';
+
+  // Auto-select today
+  const todayIdx = days.findIndex(d => d.date === todayStr);
+  if (todayIdx >= 0) selectDay(todayIdx);
+
+  // Prefetch events for each day (background)
+  prefetchDayEvents(days);
+}
+
+function renderDayCell(day, idx, todayStr) {
+  const isToday = day.date === todayStr;
+  const dateObj = new Date(day.date + 'T12:00:00');
+  const dateNum = dateObj.getDate();
+  const dayOfWeek = dateObj.toLocaleDateString('en-US', { weekday: 'short' });
+  const dow = dateObj.getDay();
+  const isWeekend = (dow === 0 || dow === 6);
+
+  let cls = 'outlook-day';
+  if (isToday) cls += ' today';
+  if (isWeekend && !isToday) cls += ' weekend';
+
+  // Build pills from priority_events (what we have from outlook data)
+  const MAX_PILLS = 4;
+  const priEvents = day.priority_events || [];
+  const visible = priEvents.slice(0, MAX_PILLS);
+  const remaining = day.event_count - visible.length;
+
+  let pillsHtml = visible.map((ev, i) => {
+    const color = CAT_COLORS[ev.category] || '#e0e0e0';
+    const isPriHigh = ev.priority >= 3;
+    const maxChars = isPriHigh ? 28 : 20;
+    const title = ev.title.length > maxChars ? ev.title.slice(0, maxChars) + '\u2026' : ev.title;
+    return `<div class="event-pill${isPriHigh ? ' priority-high' : ''}"
+                style="background:${color}"
+                data-day-idx="${idx}" data-ev-idx="${i}">${escHtml(title)}</div>`;
+  }).join('');
+
+  if (remaining > 0) {
+    pillsHtml += `<div class="pills-more">+${remaining} more</div>`;
+  }
+
+  // If no priority events but there are events, show a count
+  if (priEvents.length === 0 && day.event_count > 0) {
+    pillsHtml = `<div class="pills-more">${day.event_count} event${day.event_count !== 1 ? 's' : ''}</div>`;
+  }
+
+  return `<div class="${cls}" data-idx="${idx}">
+    <div class="outlook-day-header">
+      <span class="outlook-day-num">${dateNum}</span>
+      <span class="outlook-day-name">${dayOfWeek}</span>
+    </div>
+    <div class="outlook-pills">${pillsHtml}</div>
+    ${renderMiniTide(day.tide_curve)}
+  </div>`;
+}
+
+async function prefetchDayEvents(days) {
+  // Fetch full event data for each day so pills can open modals
+  for (const day of days) {
+    try {
+      const res = await fetch(`/api/events?start_after=${dayBounds(day.date).after}&start_before=${dayBounds(day.date).before}&limit=50`);
+      if (res.ok) {
+        day._events = await res.json();
+      }
+    } catch (e) { /* silent */ }
+  }
+}
+
+async function selectDay(idx) {
+  if (selectedDayIdx === idx) {
+    selectedDayIdx = null;
+    document.getElementById('day-detail-panel').innerHTML = '';
+    document.querySelectorAll('.outlook-day').forEach(c => { c.style.boxShadow = ''; c.style.zIndex = ''; });
+    return;
+  }
+  selectedDayIdx = idx;
+  document.querySelectorAll('.outlook-day').forEach(c => { c.style.boxShadow = ''; c.style.zIndex = ''; });
+  const cells = document.querySelectorAll('.outlook-day');
+  if (cells[idx]) { cells[idx].style.boxShadow = 'inset 0 0 0 2px #000'; cells[idx].style.zIndex = '1'; }
+
+  const day = outlookData.days[idx];
+  const panel = document.getElementById('day-detail-panel');
+
+  // Fetch tide data
+  let tideData = tideCache[day.date];
+  if (!tideData) {
+    try {
+      const res = await fetch(`/api/tides/${day.date}`);
+      if (res.ok) { tideData = await res.json(); tideCache[day.date] = tideData; }
+    } catch (e) { /* fallback */ }
+  }
+
+  const curve = tideData ? tideData.curve : day.tide_curve;
+  const hilo = tideData ? tideData.hilo : day.tide_hilo;
+
+  // Fetch events
+  let events = day._events || [];
+  if (!events.length) {
+    try {
+      const res = await fetch(`/api/events?start_after=${dayBounds(day.date).after}&start_before=${dayBounds(day.date).before}&limit=50`);
+      if (res.ok) { events = await res.json(); day._events = events; }
+    } catch (e) { /* fallback */ }
+  }
+
+  const dateObj = new Date(day.date + 'T12:00:00');
+  const heading = dateObj.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+  const sunsetNote = tideData && tideData.sunset ? `<span class="sunset-note">Sunset ${tideData.sunset}</span>` : '';
+
+  let eventsHtml = '';
+  if (events.length) {
+    eventsHtml = events.map(ev => {
+      const t = new Date(ev.start_at);
+      const timeStr = t.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+      const color = CAT_COLORS[ev.category] || '#e0e0e0';
+      return `<div class="day-event-row" data-ev='${escAttr(JSON.stringify(ev))}'>
+        <div class="ev-cat-strip" style="background:${color}"></div>
+        <span class="ev-time">${timeStr}</span>
+        <span class="ev-title">${escHtml(ev.title)}</span>
+        <span class="ev-venue">${escHtml(ev.venue_name || '')}</span>
+      </div>`;
+    }).join('');
+  } else {
+    eventsHtml = '<div style="color:var(--text-muted);font-size:13px;padding:8px 0">No events this day</div>';
+  }
+
+  panel.innerHTML = `<div class="day-detail">
+    <h3>${heading}${sunsetNote}</h3>
+    <div class="tide-detail">${renderDetailTide(curve, hilo)}</div>
+    <div class="day-detail-events">${eventsHtml}</div>
+  </div>`;
+
+  // Click handlers for event rows
+  panel.querySelectorAll('.day-event-row[data-ev]').forEach(row => {
+    row.addEventListener('click', () => {
+      try {
+        const ev = JSON.parse(row.dataset.ev);
+        openEventModal(ev);
+      } catch (e) { /* silent */ }
+    });
+  });
+}
+
+/* ============================================================
+   CALENDAR TAB
+   ============================================================ */
+let calendarCatFilter = '';
+let calendarEvents = []; // raw events for current month view
+
+function initCalendar() {
+  calendarInitialized = true;
+  const now = new Date();
+  calendarMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  renderCalendar();
+}
+
+document.getElementById('cal-prev').addEventListener('click', () => {
+  calendarMonth.setMonth(calendarMonth.getMonth() - 1);
+  renderCalendar();
+});
+document.getElementById('cal-next').addEventListener('click', () => {
+  calendarMonth.setMonth(calendarMonth.getMonth() + 1);
+  renderCalendar();
+});
+document.getElementById('cal-cat-filter').addEventListener('change', (e) => {
+  calendarCatFilter = e.target.value;
+  if (calendarInitialized) renderCalendar();
+});
+
+async function renderCalendar() {
+  const container = document.getElementById('calendar-container');
+  const year = calendarMonth.getFullYear();
+  const month = calendarMonth.getMonth();
+  const todayStr = new Date().toLocaleDateString('en-CA');
+
+  // Update title
+  document.getElementById('cal-title').textContent =
+    calendarMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
+  // Calculate grid range: first Sunday on or before month start, last Saturday on or after month end
+  const firstOfMonth = new Date(year, month, 1);
+  const lastOfMonth = new Date(year, month + 1, 0);
+  const gridStart = new Date(firstOfMonth);
+  gridStart.setDate(gridStart.getDate() - gridStart.getDay()); // back to Sunday
+  const gridEnd = new Date(lastOfMonth);
+  gridEnd.setDate(gridEnd.getDate() + (6 - gridEnd.getDay())); // forward to Saturday
+
+  // Fetch events for the grid range
+  const startISO = new Date(gridStart.getFullYear(), gridStart.getMonth(), gridStart.getDate()).toISOString();
+  const endISO = new Date(gridEnd.getFullYear(), gridEnd.getMonth(), gridEnd.getDate(), 23, 59, 59).toISOString();
+  let url = `/api/events?start_after=${startISO}&start_before=${endISO}&limit=500`;
+  if (calendarCatFilter) url += `&category=${calendarCatFilter}`;
+
+  try {
+    const res = await fetch(url);
+    if (res.ok) calendarEvents = await res.json();
+  } catch (e) {
+    console.error('Calendar fetch error:', e);
+  }
+
+  // Group events by date string
+  const eventsByDate = {};
+  for (const ev of calendarEvents) {
+    const d = new Date(ev.start_at).toLocaleDateString('en-CA');
+    if (!eventsByDate[d]) eventsByDate[d] = [];
+    eventsByDate[d].push(ev);
+  }
+  // Sort each day's events chronologically
+  for (const d in eventsByDate) {
+    eventsByDate[d].sort((a, b) => new Date(a.start_at) - new Date(b.start_at));
+  }
+
+  // Build DOW header row
+  const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  let html = '<div class="cal-grid-wrap">';
+  html += '<div class="cal-dow-row">';
+  for (const d of DOW) html += `<div class="cal-dow-cell">${d}</div>`;
+  html += '</div>';
+
+  // Build day cells
+  html += '<div class="cal-grid">';
+  const cursor = new Date(gridStart);
+  while (cursor <= gridEnd) {
+    const dateStr = cursor.toLocaleDateString('en-CA');
+    const isToday = dateStr === todayStr;
+    const dow = cursor.getDay();
+    const isWeekend = dow === 0 || dow === 6;
+    const isOtherMonth = cursor.getMonth() !== month;
+    const dateNum = cursor.getDate();
+
+    let cls = 'cal-day';
+    if (isToday) cls += ' today';
+    if (isWeekend && !isToday) cls += ' weekend';
+    if (isOtherMonth) cls += ' other-month';
+
+    const dayEvents = eventsByDate[dateStr] || [];
+    const MAX_PILLS = 4;
+    const visible = dayEvents.slice(0, MAX_PILLS);
+    const remaining = dayEvents.length - visible.length;
+
+    let pillsHtml = visible.map((ev, i) => {
+      const color = CAT_COLORS[ev.category] || '#e0e0e0';
+      const maxChars = 20;
+      const title = ev.title.length > maxChars ? ev.title.slice(0, maxChars) + '\u2026' : ev.title;
+      return `<div class="event-pill" style="background:${color}" data-cal-date="${dateStr}" data-cal-ev="${i}">${escHtml(title)}</div>`;
+    }).join('');
+
+    if (remaining > 0) {
+      pillsHtml += `<div class="pills-more">+${remaining} more</div>`;
+    }
+
+    html += `<div class="${cls}" data-cal-date="${dateStr}">
+      <div class="cal-day-num">${dateNum}</div>
+      <div class="outlook-pills">${pillsHtml}</div>
+    </div>`;
+
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  html += '</div></div>';
+
+  container.innerHTML = html;
+
+  // Click handlers: pills open modal, day cells could open detail
+  container.querySelectorAll('.event-pill[data-cal-ev]').forEach(pill => {
+    pill.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const dateStr = pill.dataset.calDate;
+      const evIdx = parseInt(pill.dataset.calEv, 10);
+      const dayEvs = eventsByDate[dateStr];
+      if (dayEvs && dayEvs[evIdx]) openEventModal(dayEvs[evIdx]);
+    });
+  });
+
+  // Click on day cell opens first event or does nothing
+  container.querySelectorAll('.cal-day').forEach(cell => {
+    cell.addEventListener('click', (e) => {
+      if (e.target.closest('.event-pill')) return;
+      const dateStr = cell.dataset.calDate;
+      const dayEvs = eventsByDate[dateStr];
+      if (dayEvs && dayEvs.length > 0) {
+        // Show all events for this day in a simple list modal
+        openDayEventsModal(dateStr, dayEvs);
+      }
+    });
+  });
+}
+
+function openDayEventsModal(dateStr, events) {
+  const dateObj = new Date(dateStr + 'T12:00:00');
+  const heading = dateObj.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+
+  let html = `<h2 style="font-size:16px;font-weight:600;margin-bottom:12px">${heading}</h2>`;
+  html += events.map((ev, i) => {
+    const dt = new Date(ev.start_at);
+    const timeStr = dt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+    const color = CAT_COLORS[ev.category] || '#e0e0e0';
+    return `<div class="event-pill" style="background:${color};padding:6px 8px;margin-bottom:4px;cursor:pointer;font-size:13px" data-modal-ev="${i}">
+      <strong>${timeStr}</strong> ${escHtml(ev.title)}${ev.venue_name ? ' — ' + escHtml(ev.venue_name) : ''}
+    </div>`;
+  }).join('');
+
+  // Reuse the modal overlay pattern
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.innerHTML = `<div class="modal-box" style="max-height:80vh;overflow-y:auto">
+    <button class="modal-close">&times;</button>
+    ${html}
+  </div>`;
+
+  document.body.appendChild(overlay);
+  overlay.querySelector('.modal-close').addEventListener('click', () => overlay.remove());
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+
+  // Click on individual events opens full modal
+  overlay.querySelectorAll('[data-modal-ev]').forEach(el => {
+    el.addEventListener('click', () => {
+      const idx = parseInt(el.dataset.modalEv, 10);
+      overlay.remove();
+      openEventModal(events[idx]);
+    });
+  });
+}
+
+
+/* ============================================================
+   HEALTH TAB
+   ============================================================ */
+let healthCreds = null;
+
+document.getElementById('health-login-btn').addEventListener('click', loginHealth);
+document.getElementById('health-pass').addEventListener('keydown', (e) => { if (e.key === 'Enter') loginHealth(); });
+
+async function loginHealth() {
+  const user = document.getElementById('health-user').value;
+  const pass = document.getElementById('health-pass').value;
+  const errEl = document.getElementById('health-error');
+  errEl.style.display = 'none';
+
+  try {
+    const res = await fetch('/health', {
+      headers: { 'Authorization': 'Basic ' + btoa(user + ':' + pass) },
+    });
+    if (res.status === 401) {
+      errEl.textContent = 'Invalid credentials';
+      errEl.style.display = 'block';
+      return;
+    }
+    if (!res.ok) throw new Error('API error');
+    healthCreds = btoa(user + ':' + pass);
+    const data = await res.json();
+    renderHealth(data);
+    document.getElementById('health-login').style.display = 'none';
+    document.getElementById('health-content').style.display = 'block';
+  } catch (e) {
+    errEl.textContent = 'Connection error. Is the API running?';
+    errEl.style.display = 'block';
+    console.error(e);
+  }
+}
+
+function renderHealth(data) {
+  const container = document.getElementById('health-content');
+
+  let alertsHtml = '';
+  if (data.alerts && data.alerts.length) {
+    alertsHtml = `<div class="health-alerts">${data.alerts.map(a => `<div class="health-alert">${escHtml(a)}</div>`).join('')}</div>`;
+  }
+
+  const rows = data.sources.map(s => {
+    const score = s.health_score;
+    const barColor = score >= 80 ? '#22c55e' : score >= 50 ? '#d4a017' : '#cc0000';
+    const lastFetch = s.last_fetch_at ? new Date(s.last_fetch_at).toLocaleString() : 'Never';
+    const avgEvts = s.avg_events_per_fetch != null ? s.avg_events_per_fetch.toFixed(1) : '-';
+    const statusColor = s.last_fetch_status === 'success' ? '#22c55e' : s.last_fetch_status === 'error' ? '#cc0000' : 'var(--text-secondary)';
+    return `<tr>
+      <td><strong>${escHtml(s.display_name)}</strong><br><span style="color:var(--text-muted);font-size:11px">${escHtml(s.name)}</span></td>
+      <td>${s.tier}</td>
+      <td>
+        <div class="health-bar"><div class="health-bar-fill" style="width:${score}%;background:${barColor}"></div></div>
+        <span style="font-size:12px;font-weight:600;color:${barColor}">${score}</span>
+      </td>
+      <td style="color:${statusColor}">${s.last_fetch_status || '-'}</td>
+      <td style="font-size:12px;color:var(--text-secondary)">${lastFetch}</td>
+      <td style="text-align:center">${avgEvts}</td>
+    </tr>`;
+  }).join('');
+
+  container.innerHTML = `${alertsHtml}
+    <div style="border:1px solid var(--border);padding:20px;">
+      <div class="health-table-wrap">
+        <table class="health-table">
+          <thead><tr>
+            <th>Source</th><th>Tier</th><th>Health</th><th>Status</th><th>Last Fetch</th><th>Avg Events</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    </div>`;
+}
+
+/* ============================================================
+   Utilities
+   ============================================================ */
+function escHtml(str) {
+  if (!str) return '';
+  const d = document.createElement('div');
+  d.textContent = str;
+  return d.innerHTML;
+}
+function renderMarkdown(text) {
+  return text
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+    .replace(/^([A-Z][A-Z\s&]+)$/gm, '<span style="font-size:11px;font-weight:600;letter-spacing:0.05em;color:#888">$1</span>');
+}
+
+function escAttr(str) {
+  return str.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function formatDateHeading(dateStr) {
+  const d = new Date(dateStr + 'T12:00:00');
+  return d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+}
+
+function dayBounds(dateStr) {
+  // Return start_after and start_before params that cover the local day
+  const start = new Date(dateStr + 'T00:00:00');
+  const end = new Date(dateStr + 'T23:59:59');
+  return {
+    after: start.toISOString(),
+    before: end.toISOString(),
+  };
+}
+
+/* ============================================================
+   Init
+   ============================================================ */
+loadOutlook();
+</script>
+</body>
+</html>
