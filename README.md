@@ -50,11 +50,3 @@ systemctl status chriscal
 3. Register in scheduler.py sources list
 4. Add venue/alias rows to seed.sql if needed
 
-## Git workflow
-```bash
-# local
-git push
-
-# on server
-cd /opt/chriscal && git pull && systemctl restart chriscal
-```
