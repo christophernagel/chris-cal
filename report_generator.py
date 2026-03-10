@@ -93,13 +93,13 @@ THIS WEEK
 LOOKING AHEAD
 [paragraph text]
 
-THIS WEEK — one sentence per event covering days 1-7. Lead with the strongest. Each \
-sentence must include the full event title in italics, venue in bold, date, and time. \
-Maximum 4 sentences. No editorializing.
+THIS WEEK — cover the most compelling events in the first 7 days across ALL categories. \
+Aim for mix: include at least one nightlife or music event (club night, DJ set, live music \
+at a club venue) if present alongside institutional programming. One sentence per event — \
+title, venue, date, time. Lead with the strongest regardless of category. Maximum 4 sentences.
 
-LOOKING AHEAD — one sentence per event covering days 8-14. Same format. If anything \
-notable is visible beyond the 14-day window, fold it into the final sentence of this \
-paragraph. Maximum 4 sentences.
+LOOKING AHEAD — same format for days 8-14. If the data includes both institutional events \
+and nightlife events, include both. Maximum 4 sentences.
 
 Never say "lineup", "don't miss", "be sure to check out", "digest", "roundup", \
 "worth noting", or "it's worth"."""
@@ -130,21 +130,53 @@ def _format_tide_summary(tide_rows: list[asyncpg.Record], sunset_str: str | None
     return " | ".join(parts)
 
 
+NIGHTLIFE_SOURCES = {"ra_la", "nineteen_hz", "topanga"}
+
+
+def _cap_per_source(events: list, max_per: int) -> list:
+    """Limit events per source (venue_name) to prevent any single institution from dominating."""
+    counts: dict[str, int] = {}
+    result = []
+    for e in events:
+        venue = e.get("venue_name") or "unknown"
+        counts[venue] = counts.get(venue, 0) + 1
+        if counts[venue] <= max_per:
+            result.append(e)
+    return result
+
+
 def _format_events_summary(events: list[asyncpg.Record], max_lines: int = 25) -> str:
     """Format events as flat text, one per line, starred for priority 3.
+
+    Enforces institutional diversity: institutional sources get 60% of slots,
+    nightlife/supplemental sources get at least 40%.
 
     [★] Title | Venue | March 10, 7:30 PM | music_performance
     """
     if not events:
         return "No upcoming events in the next 14 days."
 
-    p3 = [e for e in events if e.get("auto_priority", 1) >= 3]
-    p2 = [e for e in events if e.get("auto_priority", 1) == 2]
+    # Bucket by tier: institutional vs nightlife/supplemental
+    institutional = [e for e in events if e.get("source_name") not in NIGHTLIFE_SOURCES]
+    nightlife = [e for e in events if e.get("source_name") in NIGHTLIFE_SOURCES]
 
-    selected = list(p3)
-    remaining_slots = max(0, max_lines - len(selected))
-    selected.extend(p2[:remaining_slots])
-    selected.sort(key=lambda e: e["start_at"])
+    # Cap institutional at 60% of max_lines, nightlife gets at least 40%
+    inst_cap = int(max_lines * 0.60)
+    night_cap = max_lines - inst_cap
+
+    # Within each bucket: priority 3 first, then 2, cap per venue
+    inst_selected = _cap_per_source(
+        sorted(institutional, key=lambda e: (-e.get("auto_priority", 1), e["start_at"])),
+        max_per=3,
+    )[:inst_cap]
+
+    night_selected = _cap_per_source(
+        sorted(nightlife, key=lambda e: (-e.get("auto_priority", 1), e["start_at"])),
+        max_per=4,  # more per venue since there are fewer nightlife sources
+    )[:night_cap]
+
+    # Merge and sort chronologically
+    selected = sorted(inst_selected + night_selected, key=lambda e: e["start_at"])
 
     lines = []
     for ev in selected:
@@ -195,7 +227,8 @@ async def _fetch_events_next_14_days(
             start_at, end_at, time_of_day,
             venue_name, venue_address, zone::text,
             category::text, tags, is_free, ticket_url,
-            auto_priority, is_pinned, confidence_flag
+            auto_priority, is_pinned, confidence_flag,
+            source_name
         FROM events_view
         WHERE start_at >= $1 AND start_at < $2
         ORDER BY auto_priority DESC, start_at ASC

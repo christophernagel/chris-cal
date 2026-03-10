@@ -765,8 +765,12 @@ async def get_outlook(pool: asyncpg.Pool = Depends(get_pool)):
             cats[c] = cats.get(c, 0) + 1
 
         priority_events = [
-            {"title": e["title"], "time": e["start_at"].astimezone(la_tz).strftime("%I:%M %p").lstrip("0"),
-             "venue": e["venue_name"], "category": e["category"], "priority": e["auto_priority"]}
+            {"id": e["id"], "title": e["title"],
+             "start_at": e["start_at"].isoformat(),
+             "time": e["start_at"].astimezone(la_tz).strftime("%I:%M %p").lstrip("0"),
+             "venue": e["venue_name"], "category": e["category"], "priority": e["auto_priority"],
+             "source_url": e["source_url"], "description": e.get("description"),
+             "venue_name": e["venue_name"]}
             for e in day_events if e["auto_priority"] >= 2
         ]
 
